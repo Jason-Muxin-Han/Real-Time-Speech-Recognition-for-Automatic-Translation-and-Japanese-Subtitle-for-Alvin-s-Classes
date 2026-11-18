@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Kotoba Live</title>
+<style>
+:root{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#222c2a;background:#f5f7f5}*{box-sizing:border-box}body{margin:0}header{height:68px;border-bottom:1px solid #dbe2de;background:#fff;display:flex;align-items:center;justify-content:space-between;padding:0 max(24px,calc((100% - 1080px)/2))}.brand{font-size:19px;font-weight:750;white-space:nowrap}.brand span{color:#16846e}.tag{font-size:12px;color:#5a6f68;background:#edf4f0;border-radius:20px;padding:7px 11px}.layout{max-width:1080px;margin:auto;padding:55px 24px;display:grid;grid-template-columns:minmax(0,1.6fr) minmax(260px,1fr);gap:48px}h1{font-size:30px;line-height:1.25;margin:0 0 10px}p{color:#65746e;line-height:1.6;margin:0}.intro{margin-bottom:34px}.status{display:flex;align-items:center;gap:9px;font-size:13px;color:#64746e;margin-bottom:14px}.dot{width:8px;height:8px;border-radius:50%;background:#9aa9a2}.dot.live{background:#e2624e;box-shadow:0 0 0 4px #fbe7e2}.preview{background:#152a25;color:#fff;min-height:240px;display:flex;flex-direction:column;justify-content:center;text-align:center;padding:32px;border-radius:6px}.preview .jp{font-size:27px;line-height:1.5;overflow-wrap:anywhere}.preview .source{font-size:14px;color:#b5c7bf;margin-top:18px;overflow-wrap:anywhere}.buttons{display:flex;gap:12px;margin-top:22px}button{border:0;border-radius:5px;font:inherit;font-weight:650;cursor:pointer;padding:13px 22px}.primary{background:#147d69;color:white}.primary:hover{background:#0e6555}.secondary{background:#e4ebe7;color:#30483f}button:disabled{opacity:.5;cursor:not-allowed}.notice{font-size:13px;margin-top:20px;min-height:42px}.panel{border-top:2px solid #233e34;padding-top:18px}h2{font-size:17px;margin:0 0 24px}.setting{padding:0 0 24px;margin-bottom:24px;border-bottom:1px solid #dce4df}.setting label{display:flex;justify-content:space-between;gap:12px;font-size:14px;font-weight:650;margin-bottom:12px}.setting small{display:block;color:#75847c;line-height:1.5;margin-top:8px}input[type=range]{width:100%;accent-color:#147d69}input[type=checkbox]{accent-color:#147d69;width:17px;height:17px}.hint{font-size:13px;line-height:1.7;color:#687970}.steps{margin:12px 0 0;padding-left:20px}.steps li{margin:6px 0}@media(max-width:700px){header{padding:0 20px}.layout{padding:32px 20px;grid-template-columns:1fr;gap:40px}h1{font-size:26px}.preview{min-height:200px}.preview .jp{font-size:23px}}
+</style>
+</head>
+<body>
+<header><div class="brand"><span>言葉</span> Kotoba Live</div><div class="tag">中文 / English → 日本語</div></header>
+<main class="layout"><section><div class="intro"><h1>让对话，即刻被理解。</h1><p>自动识别中文和英文语音，翻译成日语字幕。</p></div>
+<div class="status"><span class="dot" id="dot"></span><span id="status">准备就绪</span></div>
+<div class="preview" aria-live="polite"><div class="jp" id="translation">字幕がここに表示されます</div><div class="source" id="original">等待语音输入</div></div>
+<div class="buttons"><button class="primary" id="start">开始识别</button><button class="secondary" id="stop" disabled>停止</button></div>
+<p class="notice" id="notice">开始后请允许浏览器使用麦克风。</p></section>
+<aside class="panel"><h2>字幕窗口</h2><div class="setting"><label for="visible">显示置顶字幕 <input id="visible" type="checkbox" checked></label><small>可直接拖动字幕窗口调整位置。</small></div>
+<div class="setting"><label for="opacity">背景不透明度 <span id="opacityValue">35%</span></label><input id="opacity" type="range" min="0" max="95" value="35"></div>
+<div class="setting"><label for="color">字幕颜色</label><input id="color" type="color" value="#ffffff"></div>
+<div class="setting"><label for="size">字幕大小 <span id="sizeValue">28 px</span></label><input id="size" type="range" min="18" max="60" value="28"></div>
+<div class="hint"><strong>使用提示</strong><ol class="steps"><li>点击开始并允许麦克风访问。</li><li>拖动悬浮字幕到合适的位置。</li><li>切换到其他窗口，字幕保持置顶。</li></ol>首次使用需联网下载模型；识别和翻译在本机进行，可能存在误差和延迟。</div></aside></main>
+<script>
+const token='__TOKEN__', $=id=>document.getElementById(id); let stream, recorder, timer, running=false, session=0, queue=Promise.resolve();
+if(location.protocol==='file:') { $('notice').textContent='此页面不能直接打开：请先构建并启动本地字幕程序，再从程序打开控制页面。'; $('status').textContent='本地程序未连接'; $('start').disabled=true; }
+async function settings(){try{await fetch('/api/settings',{method:'POST',headers:{'X-Kotoba-Token':token},body:`${$('opacity').value},${$('size').value},${$('visible').checked},${$('color').value}`})}catch(e){$('notice').textContent='无法连接本地应用。'}}
+for(const id of ['opacity','size','visible','color']) $(id).addEventListener('input',()=>{$('opacityValue').textContent=$('opacity').value+'%';$('sizeValue').textContent=$('size').value+' px';$('translation').style.color=$('color').value;settings()});
+if(location.protocol!=='file:') settings();
+function recordPart(current){if(!running||current!==session)return;const options=MediaRecorder.isTypeSupported('audio/webm;codecs=opus')?{mimeType:'audio/webm;codecs=opus'}:MediaRecorder.isTypeSupported('audio/mp4')?{mimeType:'audio/mp4'}:{};recorder=new MediaRecorder(stream,options);const chunks=[];recorder.ondataavailable=e=>{if(e.data.size)chunks.push(e.data)};recorder.onstop=()=>{const blob=new Blob(chunks,{type:recorder.mimeType||'audio/webm'});if(blob.size)queue=queue.then(()=>send(blob,current));if(running&&current===session)recordPart(current)};recorder.start();timer=setTimeout(()=>{if(recorder&&recorder.state==='recording')recorder.stop()},4000)}
+async function send(blob,current){if(current!==session)return;try{const res=await fetch('/api/transcribe',{method:'POST',headers:{'X-Kotoba-Token':token,'Content-Type':blob.type},body:blob});if(!res.ok)throw new Error(await res.text());const data=await res.json();if(current!==session)return;if(data.translation){$('translation').textContent=data.translation;$('original').textContent=data.original;$('notice').textContent='字幕已更新';}}catch(e){if(current===session){$('notice').textContent=e.message;stop();}}}
+function stop(){running=false;clearTimeout(timer);if(recorder&&recorder.state==='recording')recorder.stop();if(stream)stream.getTracks().forEach(t=>t.stop());$('start').disabled=false;$('stop').disabled=true;$('dot').classList.remove('live');$('status').textContent='已停止';}
+$('start').onclick=async()=>{try{stream=await navigator.mediaDevices.getUserMedia({audio:true});session++;running=true;$('start').disabled=true;$('stop').disabled=false;$('dot').classList.add('live');$('status').textContent='正在聆听';$('notice').textContent='正在处理语音，字幕可能有几秒延迟。';recordPart(session)}catch(e){$('notice').textContent='无法使用麦克风：'+e.message}};
+$('stop').onclick=stop;
+</script></body></html>
