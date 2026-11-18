@@ -1,0 +1,39 @@
+name: Build macOS
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+jobs:
+  build:
+    strategy:
+      matrix:
+        include:
+          - runner: macos-15
+            arch: arm64
+          - runner: macos-15-intel
+            arch: x64
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install -r requirements.txt
+      - run: pyinstaller --noconfirm --onedir --name kotoba-engine --collect-all faster_whisper --collect-all ctranslate2 --collect-all argostranslate --collect-all stanza --collect-all av engine.py
+      - run: |
+          mkdir -p package/app package/engine
+          javac --release 11 --add-modules jdk.httpserver -encoding UTF-8 -d package/app src/KotobaLive.java
+          jlink --add-modules java.desktop,java.net.http,jdk.httpserver,jdk.crypto.ec,jdk.charsets --strip-debug --no-header-files --no-man-pages --output package/runtime
+          cp -R dist/kotoba-engine/. package/engine/
+          cp -R web package/web
+          cp '启动字幕.command' README.md package/
+          chmod +x 'package/启动字幕.command'
+          ditto -c -k --keepParent package Kotoba-Live-${{ matrix.arch }}.zip
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Kotoba-Live-${{ matrix.arch }}
+          path: Kotoba-Live-${{ matrix.arch }}.zip
